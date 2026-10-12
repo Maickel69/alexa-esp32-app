@@ -86,9 +86,9 @@ fun MainScreen(
 
     val listState = rememberLazyListState()
 
-    // Inicializar sintetizador de voz (TTS)
+    // Inicializar sintetizador y verificar actualizaciones
     LaunchedEffect(Unit) {
-        viewModel.inicializarTts(context)
+        viewModel.inicializar(context)
     }
 
     // Auto-scroll al recibir o enviar mensajes
@@ -186,34 +186,44 @@ fun MainScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 10.dp)
-                    .clickable { viewModel.descargarEInstalarActualizacion(context) },
+                    .padding(bottom = 10.dp),
                 colors = CardDefaults.cardColors(containerColor = MoradoAlexa),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { viewModel.descargarEInstalarActualizacion(context) }
+                    ) {
                         Text(
-                            text = "🚀 Nueva actualización disponible (${updateInfo.version})",
+                            text = "🚀 Nueva versión disponible (${updateInfo.version})",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         )
                         Text(
                             text = if (progresoDescarga >= 0) "Descargando: $progresoDescarga%" else "Toca aquí para actualizar en 1 toque",
                             color = Color.LightGray,
-                            fontSize = 12.sp
+                            fontSize = 11.sp
                         )
                     }
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(6.dp))
                     if (progresoDescarga >= 0) {
-                        CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                     } else {
-                        Text("Actualizar", color = AzulAlexa, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { viewModel.descargarEInstalarActualizacion(context) }) {
+                                Text("Actualizar", color = AzulAlexa, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                            IconButton(onClick = { viewModel.descartarActualizacion(context) }, modifier = Modifier.size(24.dp)) {
+                                Text("✕", color = Color.LightGray, fontSize = 13.sp)
+                            }
+                        }
                     }
                 }
             }

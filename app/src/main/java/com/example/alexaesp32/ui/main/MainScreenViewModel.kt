@@ -55,13 +55,13 @@ class MainScreenViewModel : ViewModel() {
 
     init {
         iniciarSondeo()
-        verificarActualizaciones()
     }
 
-    fun inicializarTts(context: Context) {
+    fun inicializar(context: Context) {
         if (tts == null) {
             tts = TtsManager(context)
         }
+        verificarActualizaciones(context)
     }
 
     fun cambiarIp(nuevaIp: String) {
@@ -72,25 +72,34 @@ class MainScreenViewModel : ViewModel() {
         }
     }
 
-    fun verificarActualizaciones() {
+    fun verificarActualizaciones(context: Context) {
         viewModelScope.launch {
-            val info = UpdateManager.verificarActualizacion()
+            val info = UpdateManager.verificarActualizacion(context)
             _updateInfo.value = info
         }
+    }
+
+    fun descartarActualizacion(context: Context) {
+        val info = _updateInfo.value
+        val prefs = context.getSharedPreferences("app_updates", Context.MODE_PRIVATE)
+        prefs.edit().putString("version_instalada", info.version).apply()
+        _updateInfo.value = UpdateInfo(disponible = false)
     }
 
     fun descargarEInstalarActualizacion(context: Context) {
         val info = _updateInfo.value
         if (!info.disponible || info.urlDescarga.isEmpty()) return
 
+        _updateInfo.value = UpdateInfo(disponible = false) // Ocultar banner inmediatamente
+
         viewModelScope.launch {
             _progresoDescarga.value = 0
-            val res = UpdateManager.descargarEInstalar(context, info.urlDescarga) { p ->
+            val res = UpdateManager.descargarEInstalar(context, info) { p ->
                 _progresoDescarga.value = p
             }
             res.onFailure {
                 _progresoDescarga.value = -1
-                agregarMensaje("Error al descargar actualización: ${it.localizedMessage}", esUsuario = false)
+                agregarMensaje("Actualización: ${it.localizedMessage}", esUsuario = false)
             }
         }
     }
@@ -103,7 +112,7 @@ class MainScreenViewModel : ViewModel() {
         _cargando.value = true
 
         viewModelScope.launch {
-            // 1. Detectar si el usuario pide música
+            // 1. Detectar si el usuario pide música por nombre para el celular
             val cancion = MusicManager.extraerNombreCancion(t)
             if (cancion != null) {
                 val respuestaMusica = MusicManager.reproducirCancion(context, cancion)
