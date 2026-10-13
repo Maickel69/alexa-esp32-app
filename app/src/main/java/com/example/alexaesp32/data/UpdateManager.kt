@@ -27,7 +27,10 @@ object UpdateManager {
     suspend fun verificarActualizacion(context: Context): UpdateInfo = withContext(Dispatchers.IO) {
         try {
             val prefs = context.getSharedPreferences("app_updates", Context.MODE_PRIVATE)
-            val versionInstalada = prefs.getString("version_instalada", "v1.0.1") ?: "v1.0.1"
+            val pkgVersion = try {
+                "v" + (context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.3")
+            } catch (_: Exception) { "v1.0.3" }
+            val versionInstalada = prefs.getString("version_instalada", pkgVersion) ?: pkgVersion
 
             val url = URL("https://api.github.com/repos/$GITHUB_REPO/releases/latest")
             val conn = (url.openConnection() as HttpURLConnection).apply {

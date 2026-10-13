@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,6 +78,7 @@ fun MainScreen(
     val status by viewModel.status.collectAsStateWithLifecycle()
     val mensajes by viewModel.mensajes.collectAsStateWithLifecycle()
     val cargando by viewModel.cargando.collectAsStateWithLifecycle()
+    val estadoDescargaMusica by viewModel.estadoDescargaMusica.collectAsStateWithLifecycle()
     val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
     val progresoDescarga by viewModel.progresoDescarga.collectAsStateWithLifecycle()
 
@@ -86,19 +88,16 @@ fun MainScreen(
 
     val listState = rememberLazyListState()
 
-    // Inicializar sintetizador y verificar actualizaciones
     LaunchedEffect(Unit) {
         viewModel.inicializar(context)
     }
 
-    // Auto-scroll al recibir o enviar mensajes
     LaunchedEffect(mensajes.size) {
         if (mensajes.isNotEmpty()) {
             listState.animateScrollToItem(mensajes.size - 1)
         }
     }
 
-    // Lanzador para reconocimiento de voz nativo de Google/Android
     val speechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -121,7 +120,6 @@ fun MainScreen(
         } catch (_: Exception) {}
     }
 
-    // Diálogo para cambiar la IP
     if (mostrarDialogoIp) {
         AlertDialog(
             onDismissRequest = { mostrarDialogoIp = false },
@@ -169,7 +167,7 @@ fun MainScreen(
             .background(FondoOscuro)
             .padding(14.dp)
     ) {
-        // 1. Barra Superior con Estado del ESP32
+        // 1. Barra Superior con Estado del ESP32, MicroSD y Auto-DJ
         HeaderBar(
             ip = ip,
             status = status,
@@ -229,6 +227,32 @@ fun MainScreen(
             }
         }
 
+        // Banner de descarga MP3 en segundo plano hacia la MicroSD
+        AnimatedVisibility(visible = estadoDescargaMusica.isNotEmpty()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = AzulAlexa, strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = estadoDescargaMusica,
+                        color = AzulAlexa,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
         // 2. Chips de acciones rápidas
         ActionChipsRow(
             onChipClick = { orden ->
@@ -257,8 +281,7 @@ fun MainScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        // Indicador de carga si la IA o el hardware están procesando
-        AnimatedVisibility(cargando) {
+        AnimatedVisibility(cargando && estadoDescargaMusica.isEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -268,7 +291,7 @@ fun MainScreen(
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp), color = AzulAlexa, strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
-                Text("Alexa está pensando...", color = AzulAlexa, fontSize = 12.sp)
+                Text("Alexa está procesando...", color = AzulAlexa, fontSize = 12.sp)
             }
         }
 
@@ -324,6 +347,16 @@ fun HeaderBar(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
+                        text = if (status.sdDisponible) "SD: OK" else "SD: --",
+                        color = if (status.sdDisponible) Color(0xFF9AE6B4) else Color.Gray,
+                        fontSize = 11.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(FondoOscuro)
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
                         text = ip,
                         color = Color.Gray,
                         fontSize = 12.sp,
@@ -333,7 +366,7 @@ fun HeaderBar(
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                             .clickable { onSettingsClick() }
                     )
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(4.dp))
                     IconButton(onClick = onSettingsClick, modifier = Modifier.size(28.dp)) {
                         Text("⚙", fontSize = 16.sp, color = Color.LightGray)
                     }
@@ -351,17 +384,38 @@ fun HeaderBar(
                 Text(
                     text = parlanteTexto,
                     color = if (status.btConectado) Color(0xFF9AE6B4) else Color.LightGray,
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-                Text(
-                    text = "Música: " + (if (status.musica.isNotEmpty()) status.musica else "no"),
-                    color = Color.LightGray,
-                    fontSize = 12.sp
-                )
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text = "Vol: ${status.volumen}%",
                     color = Color.LightGray,
                     fontSize = 12.sp
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            // Canción actual y siguiente en cola Auto-DJ
+            Text(
+                text = "🎵 Sonando: " + (if (status.musica.isNotEmpty()) status.musica else "nada"),
+                color = if (status.musica.isNotEmpty() && status.musica != "no") AzulAlexa else Color.Gray,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            if (status.cola.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "⏭ Siguiente en SD: ${status.cola}",
+                    color = Color(0xFFD6BCFA),
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -371,11 +425,12 @@ fun HeaderBar(
 @Composable
 fun ActionChipsRow(onChipClick: (String) -> Unit) {
     val chips = listOf(
+        "Siguiente",
+        "Para la musica",
+        "Pon musica",
         "Buscar parlantes",
         "Conectar al 1",
         "Mi parlante",
-        "Pon musica",
-        "Para la musica",
         "Desconectar"
     )
 
@@ -447,7 +502,7 @@ fun BottomInputBar(
         OutlinedTextField(
             value = texto,
             onValueChange = onTextoChange,
-            placeholder = { Text("Escribe o pulsa Hablar...", color = Color.Gray, fontSize = 14.sp) },
+            placeholder = { Text("Ej: Reproduce Bad Bunny...", color = Color.Gray, fontSize = 14.sp) },
             modifier = Modifier.weight(1f),
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
@@ -461,7 +516,6 @@ fun BottomInputBar(
             )
         )
 
-        // Botón Enviar texto
         IconButton(
             onClick = onEnviar,
             enabled = !cargando && texto.isNotBlank(),
@@ -473,7 +527,6 @@ fun BottomInputBar(
             Text("➤", fontSize = 18.sp, color = Color.White, fontWeight = FontWeight.Bold)
         }
 
-        // Gran Botón de Micrófono con brillo tipo Alexa
         Box(
             modifier = Modifier
                 .size(54.dp)
