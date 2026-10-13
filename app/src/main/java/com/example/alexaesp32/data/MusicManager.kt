@@ -71,11 +71,25 @@ object MusicManager {
         historialExcluido: Set<String> = emptySet()
     ): Result<TrackDescargado> = withContext(Dispatchers.IO) {
         try {
-            val encoded = URLEncoder.encode(query, "UTF-8")
-            val searchJson = hacerGetJson("https://api.deezer.com/search?q=$encoded&limit=15")
-                ?: return@withContext Result.failure(Exception("No se pudo conectar al servidor de música"))
+            var dataArr: org.json.JSONArray? = null
+            val candidatasQuery = mutableListOf(query)
+            if (query.contains(" de ", ignoreCase = true)) {
+                candidatasQuery.add(query.replace(" de ", " ", ignoreCase = true))
+            }
+            if (query.contains("tamos", ignoreCase = true)) {
+                candidatasQuery.add(query.replace("tamos", "estamos", ignoreCase = true))
+            }
 
-            val dataArr = searchJson.optJSONArray("data")
+            for (q in candidatasQuery) {
+                val encoded = URLEncoder.encode(q, "UTF-8")
+                val searchJson = hacerGetJson("https://api.deezer.com/search?q=$encoded&limit=15")
+                val arr = searchJson?.optJSONArray("data")
+                if (arr != null && arr.length() > 0) {
+                    dataArr = arr
+                    break
+                }
+            }
+
             if (dataArr == null || dataArr.length() == 0) {
                 return@withContext Result.failure(Exception("No encontré la canción '$query'"))
             }
@@ -298,8 +312,10 @@ object MusicManager {
         return try {
             val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
-                connectTimeout = 6000
-                readTimeout = 6000
+                connectTimeout = 7000
+                readTimeout = 7000
+                setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) Mobile")
+                setRequestProperty("Accept", "application/json")
             }
             if (conn.responseCode in 200..299) {
                 val text = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
